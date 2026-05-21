@@ -2,6 +2,7 @@ package net.coreprotect.database.lookup;
 
 import net.coreprotect.config.ConfigHandler;
 import net.coreprotect.database.statement.UserStatement;
+import net.coreprotect.integration.CraftEngineHook;
 import net.coreprotect.language.Phrase;
 import net.coreprotect.language.Selector;
 import net.coreprotect.listener.channel.PluginChannelListener;
@@ -124,6 +125,14 @@ public class BlockLookup {
                 // Hide "minecraft:" for now.
                 if (target.startsWith("minecraft:")) {
                     target = target.split(":")[1];
+                }
+
+                // Override display name with CraftEngine custom block name for placed/broken blocks
+                if (resultAction != 3 && block != null) {
+                    String craftEngineName = CraftEngineHook.getCustomBlockName(block);
+                    if (craftEngineName != null) {
+                        target = craftEngineName;
+                    }
                 }
 
                 resultTextBuilder.append(timeAgo + " " + tag + " ").append(Phrase.build(phrase, Color.DARK_AQUA + rbFormat + resultUser + Color.WHITE + rbFormat, Color.DARK_AQUA + rbFormat + target + Color.WHITE, selector)).append("\n");
