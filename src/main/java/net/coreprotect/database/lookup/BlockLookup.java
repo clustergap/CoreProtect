@@ -6,6 +6,7 @@ import net.coreprotect.integration.CraftEngineHook;
 import net.coreprotect.language.Phrase;
 import net.coreprotect.language.Selector;
 import net.coreprotect.listener.channel.PluginChannelListener;
+import net.coreprotect.utility.BlockNames;
 import net.coreprotect.utility.*;
 import org.bukkit.Material;
 import org.bukkit.block.BlockState;
@@ -127,11 +128,24 @@ public class BlockLookup {
                     target = target.split(":")[1];
                 }
 
-                // Override display name with CraftEngine custom block name for placed/broken blocks
+                // Convert to Chinese display name for placed/broken blocks
                 if (resultAction != 3 && block != null) {
-                    String craftEngineName = CraftEngineHook.getCustomBlockName(block);
-                    if (craftEngineName != null) {
-                        target = craftEngineName;
+                    if (target.startsWith("craftengine:") || target.contains(":")) {
+                        // Try to get CE custom block display name
+                        String craftEngineName = CraftEngineHook.getCustomBlockDisplayName(block);
+                        if (craftEngineName != null) {
+                            target = craftEngineName;
+                        }
+                        else if (target.startsWith("craftengine:")) {
+                            // CE block but no longer at this location: show current block's name
+                            target = BlockNames.getChineseName(block.getType().name());
+                        }
+                        else {
+                            target = BlockNames.getChineseName(target);
+                        }
+                    }
+                    else {
+                        target = BlockNames.getChineseName(target);
                     }
                 }
 
@@ -157,7 +171,8 @@ public class BlockLookup {
                     // resultText = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Color.WHITE + "No block data found at " + Color.ITALIC + "x" + x + "/y" + y + "/z" + z + ".";
                     resultText = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA_LOCATION, Selector.FIRST);
                     if (!blockName.equals("air") && !blockName.equals("cave_air")) {
-                        resultText = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA, Color.ITALIC + block.getType().name().toLowerCase(Locale.ROOT) + Color.WHITE) + "\n";
+                        String displayBlockName = BlockNames.getChineseName(block.getType().name());
+                        resultText = Color.DARK_AQUA + "CoreProtect " + Color.WHITE + "- " + Phrase.build(Phrase.NO_DATA, Color.ITALIC + displayBlockName + Color.WHITE) + "\n";
                     }
                 }
             }
