@@ -9,19 +9,20 @@ import java.lang.reflect.Method;
 
 public class CraftEngineHook {
     private static Boolean available = null;
-    private static boolean itemBuildFailed = false;
 
-    // Block detection methods
+    // Block detection
     private static Method isCustomBlockMethod;
     private static Method getCustomBlockStateMethod;
     private static Method ownerMethod;
     private static Method registeredNameMethod;
 
-    // Display name methods (may fail on some CE versions)
+    // Processor for extracting display name from definition
     private static Object itemManagerInstance;
     private static Method getItemDefinitionMethod;
-    private static Method buildBukkitItemMethod;
-    private static Method emptyContextMethod;
+    private static Method processorsMethod;
+    private static Method customNameMethod;
+    private static Method keyOptionalMethod;
+    private static Method locationMethod;
 
     public static boolean isAvailable() {
         if (available == null) {
@@ -36,7 +37,6 @@ public class CraftEngineHook {
             Plugin craftEngine = Bukkit.getPluginManager().getPlugin("CraftEngine");
             if (craftEngine == null || !craftEngine.isEnabled()) return false;
 
-            // Block detection - essential
             Class<?> blocksClass = Class.forName("net.momirealms.craftengine.bukkit.api.CraftEngineBlocks");
             isCustomBlockMethod = blocksClass.getMethod("isCustomBlock", Block.class);
             getCustomBlockStateMethod = blocksClass.getMethod("getCustomBlockState", Block.class);
@@ -46,23 +46,26 @@ public class CraftEngineHook {
 
             Class<?> holderClass = Class.forName("net.momirealms.craftengine.core.registry.Holder");
             registeredNameMethod = holderClass.getMethod("registeredName");
+            keyOptionalMethod = holderClass.getMethod("keyOptional");
 
-            // Item building - optional, may fail on some setups
+            Class<?> resourceKeyClass = Class.forName("net.momirealms.craftengine.core.util.ResourceKey");
+            locationMethod = resourceKeyClass.getMethod("location");
+
+            // Item definition & processor for display name
             try {
                 Class<?> keyClass = Class.forName("net.momirealms.craftengine.core.util.Key");
-                Class<?> resourceKeyClass = Class.forName("net.momirealms.craftengine.core.util.ResourceKey");
 
                 Class<?> itemManagerClass = Class.forName("net.momirealms.craftengine.bukkit.item.BukkitItemManager");
-                Method itemManagerInstanceMethod = itemManagerClass.getMethod("instance");
-                itemManagerInstance = itemManagerInstanceMethod.invoke(null);
+                Method instanceMethod = itemManagerClass.getMethod("instance");
+                itemManagerInstance = instanceMethod.invoke(null);
                 getItemDefinitionMethod = itemManagerClass.getMethod("getItemDefinition", keyClass);
 
-                Class<?> itemDefClass = Class.forName("net.momirealms.craftengine.bukkit.item.BukkitItemDefinition");
-                Class<?> contextClass = Class.forName("net.momirealms.craftengine.core.item.ItemBuildContext");
-                buildBukkitItemMethod = itemDefClass.getMethod("buildBukkitItem", contextClass);
-                emptyContextMethod = contextClass.getMethod("empty");
-            } catch (Exception e) {
-                itemBuildFailed = true;
+                Class<?> itemDefClass = Class.forName("net.momirealms.craftengine.core.item.ItemDefinition");
+                processorsMethod = itemDefClass.getMethod("processors");
+
+                Class<?> processorClass = Class.forName("net.momirealms.craftengine.core.item.processor.CustomNameProcessor");
+                customNameMethod = processorClass.getMethod("customName");
+            } catch (Exception ignored) {
             }
 
             return true;
@@ -73,9 +76,9 @@ public class CraftEngineHook {
     }
 
     /**
-     * Get the custom block's display name or registered name.
-     * Returns the CE registered name (key) if the block is a CE custom block,
-     * null otherwise.
+     * Get the custom block's display name.
+     * Priority: CE custom name (Chinese) > CE registered key
+     * Returns null if the block is not a CE custom block.
      */
     public static String getCustomBlockDisplayName(BlockState blockState) {
         if (!isAvailable() || blockState == null) return null;
@@ -95,25 +98,31 @@ public class CraftEngineHook {
             String registeredName = (String) registeredNameMethod.invoke(holder);
             if (registeredName == null) return null;
 
-            // Try to get display name via item building (may fail)
-            if (!itemBuildFailed && itemManagerInstance != null) {
+            // Try to extract display name from CustomNameProcessor
+            if (itemManagerInstance != null && customNameMethod != null) {
                 try {
-                    Class<?> holderClass = holder.getClass();
-                    Method keyOptionalMethod = holderClass.getMethod("keyOptional");
                     java.util.Optional<?> keyOptional = (java.util.Optional<?>) keyOptionalMethod.invoke(holder);
                     if (keyOptional.isPresent()) {
                         Object resourceKey = keyOptional.get();
-                        Method locationMethod = resourceKey.getClass().getMethod("location");
                         Object key = locationMethod.invoke(resourceKey);
 
                         java.util.Optional<?> itemDefOptional = (java.util.Optional<?>) getItemDefinitionMethod.invoke(itemManagerInstance, key);
                         if (itemDefOptional.isPresent()) {
                             Object itemDef = itemDefOptional.get();
-                            Object emptyContext = emptyContextMethod.invoke(null);
-                            org.bukkit.inventory.ItemStack itemStack = (org.bukkit.inventory.ItemStack) buildBukkitItemMethod.invoke(itemDef, emptyContext);
-                            if (itemStack != null && itemStack.hasItemMeta() && itemStack.getItemMeta().hasDisplayName()) {
-                                String dn = itemStack.getItemMeta().getDisplayName().replaceAll("§[0-9a-fk-or]", "").trim();
-                                if (!dn.isEmpty()) return dn;
+                            Object[] processors = (Object[]) processorsMethod.invoke(itemDef);
+                            if (processors != null) {
+                                for (Object processor : processors) {
+                                    if (customNameMethod.getDeclaringClass().isInstance(processor)) {
+                                        String customName = (String) customNameMethod.invoke(processor);
+                                        if (customName != null && !customName.isEmpty()) {
+                                            // Strip MiniMessage tags: <tag>, </tag>, <!tag>
+                                            customName = customName.replaceAll("<[^>]*>", "").trim();
+                                            if (!customName.isEmpty()) {
+                                                return customName;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
