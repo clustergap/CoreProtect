@@ -130,19 +130,14 @@ public class BlockLookup {
 
                 // Convert to Chinese display name for placed/broken blocks
                 if (resultAction != 3 && block != null) {
-                    if (target.startsWith("craftengine:") || target.contains(":")) {
-                        // Try to get CE custom block display name
-                        String craftEngineName = CraftEngineHook.getCustomBlockDisplayName(block);
-                        if (craftEngineName != null) {
-                            target = craftEngineName;
-                        }
-                        else if (target.startsWith("craftengine:")) {
-                            // CE block but no longer at this location: show current block's name
-                            target = BlockNames.getChineseName(block.getType().name());
-                        }
-                        else {
-                            target = BlockNames.getChineseName(target);
-                        }
+                    // Always try CE first - it checks the actual block at coordinates
+                    String craftEngineName = CraftEngineHook.getCustomBlockDisplayName(block);
+                    if (craftEngineName != null) {
+                        target = craftEngineName;
+                    }
+                    else if (target.startsWith("craftengine:")) {
+                        // CE block in DB but no longer at this location: show current block's name
+                        target = BlockNames.getChineseName(block.getType().name());
                     }
                     else {
                         target = BlockNames.getChineseName(target);
