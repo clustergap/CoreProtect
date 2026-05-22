@@ -506,6 +506,9 @@ public class BlockNames {
         CHINESE_NAMES.put("stone_stairs", "石楼梯");
         CHINESE_NAMES.put("cobblestone_stairs", "圆石楼梯");
         CHINESE_NAMES.put("stone_brick_stairs", "石砖楼梯");
+        CHINESE_NAMES.put("bricks", "砖块");
+        CHINESE_NAMES.put("brick", "砖");
+        CHINESE_NAMES.put("brick_block", "砖块");
 
     }
 

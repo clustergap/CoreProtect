@@ -21,7 +21,6 @@ public class CraftEngineHook {
     // Display name methods
     private static Method keyOptionalMethod;
     private static Method locationMethod;
-    private static Method keyAsStringMethod;
     private static Object itemManagerInstance;
     private static Method getItemDefinitionMethod;
     private static Method buildBukkitItemMethod;
@@ -57,7 +56,6 @@ public class CraftEngineHook {
             locationMethod = resourceKeyClass.getMethod("location");
 
             Class<?> keyClass = Class.forName("net.momirealms.craftengine.core.util.Key");
-            keyAsStringMethod = keyClass.getMethod("asString");
 
             // Item manager for display name lookup
             Class<?> itemManagerClass = Class.forName("net.momirealms.craftengine.bukkit.item.BukkitItemManager");
@@ -139,29 +137,33 @@ public class CraftEngineHook {
             if (registeredName == null) return null;
 
             // Try to get the item definition and build the item for display name
-            Optional<?> keyOptional = (Optional<?>) keyOptionalMethod.invoke(holder);
-            if (keyOptional.isPresent()) {
-                Object resourceKey = keyOptional.get();
-                Object key = locationMethod.invoke(resourceKey);
+            try {
+                Optional<?> keyOptional = (Optional<?>) keyOptionalMethod.invoke(holder);
+                if (keyOptional.isPresent()) {
+                    Object resourceKey = keyOptional.get();
+                    Object key = locationMethod.invoke(resourceKey);
 
-                // Look up item definition by the block's key
-                Optional<?> itemDefOptional = (Optional<?>) getItemDefinitionMethod.invoke(itemManagerInstance, key);
-                if (itemDefOptional.isPresent()) {
-                    Object itemDef = itemDefOptional.get();
-                    Object emptyContext = emptyContextMethod.invoke(null);
-                    ItemStack itemStack = (ItemStack) buildBukkitItemMethod.invoke(itemDef, emptyContext);
+                    // Look up item definition by the block's key
+                    Optional<?> itemDefOptional = (Optional<?>) getItemDefinitionMethod.invoke(itemManagerInstance, key);
+                    if (itemDefOptional.isPresent()) {
+                        Object itemDef = itemDefOptional.get();
+                        Object emptyContext = emptyContextMethod.invoke(null);
+                        ItemStack itemStack = (ItemStack) buildBukkitItemMethod.invoke(itemDef, emptyContext);
 
-                    if (itemStack != null && itemStack.hasItemMeta() && itemStack.getItemMeta().hasDisplayName()) {
-                        String displayName = itemStack.getItemMeta().getDisplayName();
-                        if (displayName != null && !displayName.isEmpty()) {
-                            // Strip legacy color codes
-                            displayName = displayName.replaceAll("§[0-9a-fk-or]", "").trim();
-                            if (!displayName.isEmpty()) {
-                                return displayName;
+                        if (itemStack != null && itemStack.hasItemMeta() && itemStack.getItemMeta().hasDisplayName()) {
+                            String displayName = itemStack.getItemMeta().getDisplayName();
+                            if (displayName != null && !displayName.isEmpty()) {
+                                // Strip legacy color codes
+                                displayName = displayName.replaceAll("§[0-9a-fk-or]", "").trim();
+                                if (!displayName.isEmpty()) {
+                                    return displayName;
+                                }
                             }
                         }
                     }
                 }
+            } catch (Exception ignored) {
+                // Item building failed, fall through to registered name
             }
 
             // Fallback to registered name
